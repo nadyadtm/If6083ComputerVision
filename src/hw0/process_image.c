@@ -16,16 +16,16 @@ float get_pixel(image im, int x, int y, int c)
     if (y<0){
         row = 0;
     }
-    if (x>im.w){
-        column = im.w-1;
-    }
-    if (y>im.h){
-        row = im.h-1;
-    }
     if (c<0){
         channel = 0;
     }
-    if (c>im.c){
+    if (x>=im.w){
+        column = im.w-1;
+    }
+    if (y>=im.h){
+        row = im.h-1;
+    }
+    if (c>=im.c){
         channel = im.c-1;
     }
     return im.data[im.w*row + column + im.w*im.h*channel];
@@ -38,29 +38,25 @@ void set_pixel(image im, int x, int y, int c, float v)
     int row = y;
     int column = x;
     int channel = c;
-    if (x<0){
+     if (x<0){
         column = 0;
     }
     if (y<0){
         row = 0;
     }
-    if (x>im.w){
-        column = im.w-1;
-    }
-    if (y>im.h){
-        row = im.h-1;
-    }
     if (c<0){
         channel = 0;
     }
-    if (c>im.c){
+    if (x>=im.w){
+        column = im.w-1;
+    }
+    if (y>=im.h){
+        row = im.h-1;
+    }
+    if (c>=im.c){
         channel = im.c-1;
     }
-    if (x<0 || y<0 || x>im.w || y>im.h){
-        return;
-    } else{
-        *(im.data + (im.w*row + column + im.w*im.h*channel)) = v;
-    }
+    *(im.data + (im.w*row + column + im.w*im.h*channel)) = v;
 }
 
 image copy_image(image im)
