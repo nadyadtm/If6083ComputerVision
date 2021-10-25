@@ -1,6 +1,24 @@
 #include <math.h>
 #include "image.h"
 
+/* 
+------------------------------------------------------------------------
+________________________________________________________________________
+
+Keterangan:
+Pada HW1, code pada fungsi 
+1. get_pixel() (line 13-31) dan 
+2. set_pixel() (line 38-58) 
+pada process_image.c di HW0 diubah karena pada code yang sebelumnya 
+ditemukan kesalahan pada kondisi ifnya sehingga dua test case HW1
+pada bilinear_resize menjadi failed.
+Untuk perubahan file process_image.c sudah dilampirkan dalam folder 
+src/hw0
+
+________________________________________________________________________
+------------------------------------------------------------------------
+*/
+
 float nn_interpolate(image im, float x, float y, int c)
 {
     // TODO Fill in

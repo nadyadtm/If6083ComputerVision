@@ -34,7 +34,6 @@ float get_pixel(image im, int x, int y, int c)
 void set_pixel(image im, int x, int y, int c, float v)
 {
     // TODO Fill this in
-        // TODO Fill this in
     int row = y;
     int column = x;
     int channel = c;
