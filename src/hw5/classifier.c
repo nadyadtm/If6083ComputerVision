@@ -16,17 +16,34 @@ void activate_matrix(matrix m, ACTIVATION a)
             double x = m.data[i][j];
             if(a == LOGISTIC){
                 // TODO
+                m.data[i][j]=1/(1+exp(-x));
             } else if (a == RELU){
                 // TODO
+                if (x>=0){
+                    m.data[i][j]=x;
+                }
+                else{
+                    m.data[i][j]=0;
+                }
             } else if (a == LRELU){
                 // TODO
+                if (x>=0){
+                    m.data[i][j]=x;
+                }
+                else{
+                    m.data[i][j]=0.1*x;
+                }
             } else if (a == SOFTMAX){
                 // TODO
+                m.data[i][j]=exp(x);
             }
             sum += m.data[i][j];
         }
         if (a == SOFTMAX) {
             // TODO: have to normalize by sum if we are using SOFTMAX
+            for (int k =0;k<m.cols;++k){
+                m.data[i][k]=m.data[i][k]/sum;
+            }
         }
     }
 }
@@ -43,6 +60,27 @@ void gradient_matrix(matrix m, ACTIVATION a, matrix d)
         for(j = 0; j < m.cols; ++j){
             double x = m.data[i][j];
             // TODO: multiply the correct element of d by the gradient
+            if(a == LOGISTIC){
+                // TODO
+                double derive = x*(1-x);
+                d.data[i][j]=d.data[i][j]*derive;
+            } else if (a == RELU){
+                // TODO
+                if (x>0){
+                    d.data[i][j]=d.data[i][j]*1;
+                }
+                else{
+                    d.data[i][j]=d.data[i][j]*0;
+                }
+            } else if (a == LRELU){
+                // TODO
+                if (x>0){
+                    d.data[i][j]=d.data[i][j]*1;
+                }
+                else{
+                    d.data[i][j]=d.data[i][j]*0.1;
+                }
+            }
         }
     }
 }
@@ -53,14 +91,16 @@ void gradient_matrix(matrix m, ACTIVATION a, matrix d)
 // returns: matrix that is output of the layer
 matrix forward_layer(layer *l, matrix in)
 {
-
+    
     l->in = in;  // Save the input for backpropagation
-
-
+    
+    
     // TODO: fix this! multiply input by weights and apply activation function.
     matrix out = make_matrix(in.rows, l->w.cols);
-
-
+    out = matrix_mult_matrix(in, l->w);
+    activate_matrix(out,l->activation);
+    
+    
     free_matrix(l->out);// free the old output
     l->out = out;       // Save the current output for gradient calculation
     return out;
@@ -75,19 +115,23 @@ matrix backward_layer(layer *l, matrix delta)
     // 1.4.1
     // delta is dL/dy
     // TODO: modify it in place to be dL/d(xw)
-
-
+    gradient_matrix(l->out,l->activation,delta);
+    
+    
     // 1.4.2
     // TODO: then calculate dL/dw and save it in l->dw
     free_matrix(l->dw);
     matrix dw = make_matrix(l->w.rows, l->w.cols); // replace this
+    matrix xt = transpose_matrix(l->in);
+    dw = matrix_mult_matrix(xt,delta);
     l->dw = dw;
-
+    
     
     // 1.4.3
     // TODO: finally, calculate dL/dx and return it.
     matrix dx = make_matrix(l->in.rows, l->in.cols); // replace this
-
+    matrix wt = transpose_matrix(l->w);
+    dx = matrix_mult_matrix(delta,wt);
     return dx;
 }
 
@@ -101,13 +145,21 @@ void update_layer(layer *l, double rate, double momentum, double decay)
     // TODO:
     // Calculate Δw_t = dL/dw_t - λw_t + mΔw_{t-1}
     // save it to l->v
-
-
+    matrix dwt = make_matrix(l->dw.rows, l->dw.cols);
+    for (int i=0 ; i<l->dw.rows;i++){
+        for (int j=0; j<l->dw.cols;j++){
+            dwt.data[i][j]= l->dw.data[i][j] - decay*l->w.data[i][j] + momentum*l->v.data[i][j];
+        }
+    }
+    free_matrix(l->v);
+    l->v = dwt;
+    
     // Update l->w
-
-
+    matrix w = l->w;
+    l->w = axpy_matrix(rate,dwt,w);
+    
     // Remember to free any intermediate results to avoid memory leaks
-
+    
 }
 
 // Make a new layer for our model
@@ -242,32 +294,112 @@ void train_model(model m, data d, int batch, int iters, double rate, double mome
 }
 
 
-// Questions 
+// Questions
 //
-// 5.2.2.1 Why might we be interested in both training accuracy and testing accuracy? What do these two numbers tell us about our current model?
+
+// 5.2.2.1 Why might we be interested in both training accuracy and testing accuracy?
+// What do these two numbers tell us about our current model?
 // TODO
-//
+// Akurasi training menunjukkan seberapa baiknya model dapat mengenali gambar yang telah dilatih sebelumnya,
+// sedangkan akurasi testing menunjukkan sebarapa baiknya model dapat mengenali gambar yang baru.
+
 // 5.2.2.2 Try varying the model parameter for learning rate to different powers of 10 (i.e. 10^1, 10^0, 10^-1, 10^-2, 10^-3) and training the model. What patterns do you see and how does the choice of learning rate affect both the loss during training and the final model accuracy?
 // TODO
-//
+// ==========================================================================
+//      LR      |    ACC TRAINING    |    ACC TESTING     |    FINAL LOSS   |
+// ==========================================================================
+//      10      |    9.9%            |    10%             |    NAN          | (final loss di iterasi ke 6 19.430558)
+//      1       |    87.57%          |    88.02%          |    0.479951     |
+//      0.1     |    91.53%          |    91.11%          |    0.250382     |
+//      0.01    |    90.37%          |    91%             |    0.290485     |
+//      0.001   |    85.89%          |    86.81%          |    0.555315     |
+// ==========================================================================
+
 // 5.2.2.3 Try varying the parameter for weight decay to different powers of 10: (10^0, 10^-1, 10^-2, 10^-3, 10^-4, 10^-5). How does weight decay affect the final model training and test accuracy?
 // TODO
-//
+// ========================================================
+//      decay   |    ACC TRAINING    |    ACC TESTING     |
+// ========================================================
+//      1       |    89.78%          |    90.57%          |
+//      0.1     |    90.30%          |    91.04%          |
+//      0.01    |    90.36%          |    91%             |
+//      0.001   |    90.37%          |    91%             |
+//      0.0001  |    90.37%          |    91%             |
+//      0.00001 |    90.37%          |    91%             |
+// ========================================================
+
+
 // 5.2.3.1 Currently the model uses a logistic activation for the first layer. Try using a the different activation functions we programmed. How well do they perform? What's best?
 // TODO
-//
+// ========================================================================
+//      ACTIVATION  |   ACC TRAINING  |    ACC TESTING   |   FINAL LOSS   |
+// ========================================================================
+//      LOGISTIC    |    89.0%        |    89.76%        |     0.414435   |
+//      RELU        |    92.75%       |    92.97%        |     0.190136   |
+//      LRELU       |    92.53%       |    92.75%        |     0.196135   |
+// ========================================================================
+// Activation logistic --> pengurangan loss agak lambat, hal ini ditandai dengan loss terakhir dari iterasi ke 1000 adalah 0.41
+// Activation relu --> pengurangan loss lebih cepat dibandingkan logistic
+// Activation lrelu --> tidak berbeda jauh performansinya dengan relu
+// menurut akurasi, fungsi aktivasi yang terbaik adalah fungsi aktivasi relu
+
+
+
 // 5.2.3.2 Using the same activation, find the best (power of 10) learning rate for your model. What is the training accuracy and testing accuracy?
 // TODO
-//
+// Fungsi aktivasi yang digunakan adalah RELU (terkait dengan poin 5.2.3.1)
+// ========================================================
+//      LR      |    ACC TRAINING    |    ACC TESTING     |
+// ========================================================
+//      10      |    9.91%           |    10.0%           |
+//      1       |    20.45%          |    20.6%           |
+//      0.1     |    95.88%          |    95.34%          |
+//      0.01    |    92.75%          |    92.97%          |
+//      0.001   |    86.88%          |    87.7%           |
+// ========================================================
+// LR terbaik pada model ini adalah 0.1 dengan akurasi training sebesar 95.88% dan akurasi testing sebesar 95.34%
+
 // 5.2.3.3 Right now the regularization parameter `decay` is set to 0. Try adding some decay to your model. What happens, does it help? Why or why not may this be?
 // TODO
-//
+// Fungsi aktivasi yang digunakan adalah relu dengan LR 0.1
+// =======================================================================
+//      decay   |    ACC TRAINING    |    ACC TESTING     |  FINAL LOSS  |
+// =======================================================================
+//      1       |    91.92%          |    91.99%          |  0.200494    |
+//      0.1     |    95.94%          |    95.83%          |  0.084105    |
+//      0.01    |    95.83%          |    95.43%          |  0.121643    |
+//      0.001   |    95.64%          |    95.13%          |  0.124016    |
+//      0.0001  |    95.90%          |    95.42%          |  0.118124    |
+// =======================================================================
+// Weight decay tidak berpengaruh secara signifikan pada akurasi model
+
 // 5.2.3.4 Modify your model so it has 3 layers instead of two. The layers should be `inputs -> 64`, `64 -> 32`, and `32 -> outputs`. Also modify your model to train for 3000 iterations instead of 1000. Look at the training and testing error for different values of decay (powers of 10, 10^-4 -> 10^0). Which is best? Why?
 // TODO
-//
+// Fungsi aktivasi yang digunakan adalah relu dengan LR 0.1
+// =======================================================================
+//      decay   |    ACC TRAINING    |    ACC TESTING     |  FINAL LOSS  |
+// =======================================================================
+//      1       |    94.07%          |    94.23%          |  0.203054    |
+//      0.1     |    97.19%          |    96.57%          |  0.059925    |
+//      0.01    |    98.31%          |    97.10%          |  0.014535    |
+//      0.001   |    98.21%          |    97.15%          |  0.025226    |
+//      0.0001  |    98.45%          |    97.47%          |  0.046766    |
+// =======================================================================
+
+
 // 5.3.2.1 How well does your network perform on the CIFAR dataset?
 // TODO
-//
+// LR : 0.01, Activation RELU, Iterasi 3000, momentum 0.9, decay .0001
+// Akurasi training --> training 47.1%, testing 45.7%
+// LR : 0.01, Activation RELU, Iterasi 1000, momentum 0.9, decay .0001
+// Akurasi training --> training 41.0%, testing 40.6%
+// LR : 0.001, Activation RELU, Iterasi 1000, momentum 0.9, decay .0001
+// Akurasi training --> training 33.4%, testing 33.0%
+
+// LR : 0.01, Activation RELU, Iterasi 4000, momentum 0.9, decay .0001
+// Akurasi training --> training 48.13%, testing 46.3%
+
+
 
 
 
