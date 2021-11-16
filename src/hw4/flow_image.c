@@ -48,6 +48,31 @@ image make_integral_image(image im)
 {
     image integ = make_image(im.w, im.h, im.c);
     // TODO: fill in the integral image
+    float I1,I2,I3;
+    for (int c=0;c<im.c;c++){
+        for(int x=0;x<im.w;x++){
+            for(int y=0;y<im.h;y++){
+                if ((x>=0)&&(y-1>=0)){
+                    I1= get_pixel(integ,x,y-1,c);
+                } else{
+                    I1= 0;
+                }
+                if ((x-1>=0)&&(y>=0)){
+                    I2= get_pixel(integ,x-1,y,c);
+                } else{
+                    I2= 0;
+                }
+                if ((x>=0)&&(y-1>=0)){
+                    I3= get_pixel(integ,x-1,y-1,c);
+                } else{
+                    I3= 0;
+                }
+                float i = get_pixel(im,x,y,c);
+                float r = i+I1+I2-I3;
+                set_pixel(integ,x,y,c,r);
+            }
+        }
+    }
     return integ;
 }
 
@@ -58,9 +83,44 @@ image make_integral_image(image im)
 image box_filter_image(image im, int s)
 {
     int i,j,k;
+    float I1,I2,I3,I4;
+    int x1,x2,y1,y2;
+    int r = (s-1)/2;
+    
     image integ = make_integral_image(im);
     image S = make_image(im.w, im.h, im.c);
     // TODO: fill in S using the integral image.
+    for (int k=0;k<im.c;k++){
+        for (int i=0;i<im.w;i++){
+            for (int j=0;j<im.h;j++){
+                I1=get_pixel(integ,i+r,j+r,k);
+                I2=get_pixel(integ,i-r-1,j+r,k);
+                I3=get_pixel(integ,i+r,j-r-1,k);
+                I4=get_pixel(integ,i-r-1,j-r-1,k);
+                
+                x1 = i+r;
+                x2 = i-r-1;
+                y1 = j+r;
+                y2 = j-r-1;
+                if (x2<0){
+                    x2 = 0;
+                }
+                if (y2<0){
+                    y2 = 0;
+                }
+                if (x1>=im.w){
+                    x1 = im.w-1;
+                }
+                if (y1>=im.h){
+                    y1 = im.h-1;
+                }
+                int pw = (x1-x2)*(y1-y2);
+                // int pw = (2*r+1)*(2*r+1);
+                float v = (float) (I1-I2-I3+I4)/pw;
+                set_pixel(S,i,j,k,v);
+            }
+        }
+    }
     return S;
 }
 
@@ -79,11 +139,29 @@ image time_structure_matrix(image im, image prev, int s)
         im = rgb_to_grayscale(im);
         prev = rgb_to_grayscale(prev);
     }
-
+    
     // TODO: calculate gradients, structure components, and smooth them
-
-    image S;
-
+    
+    image S = make_image(im.w,im.h,5);
+    image Ix = convolve_image(im,make_gx_filter(),0);
+    image Iy = convolve_image(im,make_gy_filter(),0);
+    image It = sub_image(im,prev);
+    for (int x = 0; x<im.w;x++){
+        for (int y=0;y<im.h;y++){
+            float Ix_el = get_pixel(Ix,x,y,0);
+            float Iy_el = get_pixel(Iy,x,y,0);
+            float It_el = get_pixel(It,x,y,0);
+            set_pixel(S,x,y,0,Ix_el*Ix_el);
+            set_pixel(S,x,y,1,Iy_el*Iy_el);
+            set_pixel(S,x,y,2,Ix_el*Iy_el);
+            set_pixel(S,x,y,3,Ix_el*It_el);
+            set_pixel(S,x,y,4,Iy_el*It_el);
+            
+        }
+    }
+    
+    S = box_filter_image(S,s);
+    
     if(converted){
         free_image(im); free_image(prev);
     }
@@ -98,6 +176,7 @@ image velocity_image(image S, int stride)
     image v = make_image(S.w/stride, S.h/stride, 3);
     int i, j;
     matrix M = make_matrix(2,2);
+    matrix b = make_matrix(2,1);
     for(j = (stride-1)/2; j < S.h; j += stride){
         for(i = (stride-1)/2; i < S.w; i += stride){
             float Ixx = S.data[i + S.w*j + 0*S.w*S.h];
@@ -105,11 +184,34 @@ image velocity_image(image S, int stride)
             float Ixy = S.data[i + S.w*j + 2*S.w*S.h];
             float Ixt = S.data[i + S.w*j + 3*S.w*S.h];
             float Iyt = S.data[i + S.w*j + 4*S.w*S.h];
-
+            
             // TODO: calculate vx and vy using the flow equation
             float vx = 0;
             float vy = 0;
-
+            
+            double m1[2] = {Ixx,Ixy};
+            double m2[2] = {Ixy,Iyy};
+            b.data[0][0]= -Ixt;
+            b.data[1][0]= -Iyt;
+            for(int k=0;k<2;k++){
+                M.data[0][k]=m1[k];
+                M.data[1][k]=m2[k];
+            }
+            
+            matrix Minv = matrix_invert(M);
+            
+            if (Minv.data) {
+                matrix result = matrix_mult_matrix(Minv, b);
+                vx = result.data[0][0];
+                vy = result.data[1][0];
+                free_matrix(Minv);
+                free_matrix(result);
+            }
+            else {
+                vx = 0;
+                vy = 0;
+            }
+            
             set_pixel(v, i/stride, j/stride, 0, vx);
             set_pixel(v, i/stride, j/stride, 1, vy);
         }
@@ -158,7 +260,7 @@ void constrain_image(image im, float v)
 // returns: velocity matrix
 image optical_flow_images(image im, image prev, int smooth, int stride)
 {
-    image S = time_structure_matrix(im, prev, smooth);   
+    image S = time_structure_matrix(im, prev, smooth);
     image v = velocity_image(S, stride);
     constrain_image(v, 6);
     image vs = smooth_image(v, 2);
@@ -203,3 +305,4 @@ void optical_flow_webcam(int smooth, int stride, int div)
     fprintf(stderr, "Must compile with OpenCV\n");
 #endif
 }
+
